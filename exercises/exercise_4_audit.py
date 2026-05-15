@@ -101,7 +101,16 @@ async def node_analyze(state):
     llm = get_llm().with_structured_output(PRAnalysis)
     with console.status("[dim]LLM reviewing the diff...[/dim]"):
         a: PRAnalysis = await llm.ainvoke([
-            {"role": "system", "content": "Senior reviewer. Structured output."},
+            {"role": "system", "content": (
+                "Senior reviewer. Structured output. "
+                "Calibrate your confidence score: >0.73 for trivial PRs only (typo/rename/bump); "
+                "0.58-0.73 for small features, schema additions, refactors with some uncertainty; "
+                "<0.58 ONLY for clear security vulnerabilities (MD5/SHA1 hashing, SQL injection "
+                "via string concat, plaintext token/password storage, hardcoded credentials) or "
+                "completely unclear intent. A schema migration with one open question is 0.60-0.70. "
+                "If confidence < 0.58, populate escalation_questions with 2-4 specific questions "
+                "referencing exact file names and line numbers from the diff."
+            )},
             {"role": "user", "content": f"Title: {state['pr_title']}\nDiff:\n{state['pr_diff']}"},
         ])
     console.print(f"  [green]✓[/green] confidence={a.confidence:.0%}, {len(a.comments)} comment(s)")

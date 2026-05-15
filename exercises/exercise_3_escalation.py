@@ -44,10 +44,13 @@ def node_analyze(state):
         analysis = llm.invoke([
             {"role": "system", "content": (
                 "Senior reviewer. Structured output. "
-                "If your confidence is below 60%, you MUST populate escalation_questions with "
-                "2-4 specific, context-rich questions that reference the exact file name and section "
-                "in the diff where your uncertainty lies (e.g., 'In storage.py line 42, why is MD5 "
-                "used for password hashing instead of bcrypt?')."
+                "Calibrate your confidence score: >0.73 for trivial PRs only (typo/rename/bump); "
+                "0.58-0.73 for small features, schema additions, refactors with some uncertainty; "
+                "<0.58 ONLY for clear security vulnerabilities (MD5/SHA1 hashing, SQL injection "
+                "via string concat, plaintext token/password storage, hardcoded credentials) or "
+                "completely unclear intent. A schema migration with one open question is 0.60-0.70. "
+                "If confidence < 0.58, you MUST populate escalation_questions with 2-4 specific "
+                "questions referencing exact file names and line numbers from the diff."
             )},
             {"role": "user", "content": f"Title: {state['pr_title']}\nDiff:\n{state['pr_diff']}"},
         ])

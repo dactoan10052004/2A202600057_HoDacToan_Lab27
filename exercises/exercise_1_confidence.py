@@ -43,7 +43,17 @@ def node_analyze(state: ReviewState) -> dict:
     llm = get_llm().with_structured_output(PRAnalysis)
     with console.status("[dim]LLM thinking...[/dim]"):
         analysis = llm.invoke([
-            {"role": "system", "content": "You are a senior code reviewer. Provide structured output."},
+            {"role": "system", "content": (
+                "You are a senior code reviewer. Provide structured output. "
+                "Calibrate your confidence score on this scale:\n"
+                "- >0.73: trivial PRs only (typo fixes, dependency bumps, simple renames)\n"
+                "- 0.58-0.73: small features, schema additions, refactors — you can review them "
+                "but have some uncertainty (e.g. migration concerns, edge cases)\n"
+                "- <0.58: ONLY for clear security vulnerabilities (MD5/SHA1 password hashing, "
+                "SQL injection via string concatenation, plaintext storage of tokens/passwords, "
+                "hardcoded credentials) or completely unclear intent requiring clarification\n"
+                "A schema migration with one open question is 0.60-0.70, NOT below 0.58."
+            )},
             {"role": "user", "content": f"PR Title: {state['pr_title']}\nDiff:\n{state['pr_diff']}"},
         ])
     console.print(f"  [green]✓[/green] confidence={analysis.confidence:.0%}, {len(analysis.comments)} comment(s)")
