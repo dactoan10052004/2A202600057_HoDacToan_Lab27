@@ -97,19 +97,30 @@ async def _resume_from_checkpoint(thread_id: str, checkpoint_id: str):
 
 
 async def _fetch_checkpoints(thread_id: str) -> list[dict]:
-    """B1 — list all LangGraph checkpoints for a thread."""
+    """B1 — list unique LangGraph checkpoints for a thread.
+
+    Deduplicates by (step, next_node) — keeps the most recent checkpoint
+    for each unique position in the graph, so repeated resume cycles don't
+    clutter the list.
+    """
     try:
         async with AsyncSqliteSaver.from_conn_string(db_path()) as cp:
             await cp.setup()
             cfg = {"configurable": {"thread_id": thread_id}}
             app = build_graph(cp)
+            seen: set[tuple] = set()
             history = []
             async for state in app.aget_state_history(cfg):
                 metadata = state.metadata or {}
+                step = metadata.get("step", "?")
+                next_nodes = tuple(sorted(state.next))
+                key = (step, next_nodes)
+                if key in seen:
+                    continue
+                seen.add(key)
                 history.append({
-                    "checkpoint_id": state.config["configurable"].get("checkpoint_id", ""),
-                    "step": metadata.get("step", "?"),
-                    "node": metadata.get("writes", {}) and list(metadata.get("writes", {}).keys()),
+                    "checkpoint_id": (state.config.get("configurable") or {}).get("checkpoint_id", ""),
+                    "step": step,
                     "next": list(state.next),
                     "ts": state.created_at,
                 })
